@@ -17,6 +17,12 @@ const tournamentSheet = spreadsheet.getSheetByName('トーナメント');
 const blockSheet = spreadsheet.getSheetByName('ブロック');
 const tableSheet = spreadsheet.getSheetByName('テーブル');
 
+// トーナメントタイプの定数
+const TOURNAMENT_TYPE = {
+  SINGLE_SIDED: 'single',
+  DOUBLE_SIDED: 'double'
+};
+
 /**
  * スプレッドシートが開かれたときに実行される関数
  * メニューを作成する
@@ -34,31 +40,47 @@ function onOpen() {
  */
 function createTournamentFromInput() {
   const ui = SpreadsheetApp.getUi();
-  const response = ui.prompt(
+  
+  // 参加人数の入力
+  const participantResponse = ui.prompt(
     'トーナメント作成',
     '参加人数を入力してください：',
     ui.ButtonSet.OK_CANCEL
   );
 
-  if (response.getSelectedButton() == ui.Button.OK) {
-    const participantCount = parseInt(response.getResponseText());
-    
-    if (isNaN(participantCount) || participantCount < 2) {
-      ui.alert('エラー', '有効な参加人数を入力してください（2以上の整数）', ui.ButtonSet.OK);
-      return;
-    }
-    
-    // 参加人数を保存
-    tournamentDataSheet.getRange(3, 2).setValue(participantCount);
-    
-    // シートの初期化
-    clearSheet(tournamentSheet);
-    blockSheet.clear();
-    tableSheet.clear();
-    
-    // トーナメント作成
-    createTournament();
+  if (participantResponse.getSelectedButton() != ui.Button.OK) {
+    return; // キャンセルされた場合は終了
   }
+  
+  const participantCount = parseInt(participantResponse.getResponseText());
+  
+  if (isNaN(participantCount) || participantCount < 2) {
+    ui.alert('エラー', '有効な参加人数を入力してください（2以上の整数）', ui.ButtonSet.OK);
+    return;
+  }
+  
+  // トーナメントタイプの選択
+  const typeResponse = ui.alert(
+    'トーナメントタイプ',
+    'トーナメントのタイプを選択してください：\n\n「OK」→ 両側トーナメント\n「いいえ」→ 片側トーナメント',
+    ui.ButtonSet.YES_NO
+  );
+  
+  const tournamentType = (typeResponse == ui.Button.YES) 
+    ? TOURNAMENT_TYPE.DOUBLE_SIDED 
+    : TOURNAMENT_TYPE.SINGLE_SIDED;
+  
+  // 参加人数とトーナメントタイプを保存
+  tournamentDataSheet.getRange(3, 2).setValue(participantCount);
+  tournamentDataSheet.getRange(4, 2).setValue(tournamentType);
+  
+  // シートの初期化
+  clearSheet(tournamentSheet);
+  blockSheet.clear();
+  tableSheet.clear();
+  
+  // トーナメント作成
+  createTournament();
 }
 
 /**
@@ -112,6 +134,7 @@ function createTournament() {
   try {
     // 基本パラメータの設定
     const participantCount = tournamentDataSheet.getRange(3, 2).getValue();
+    const tournamentType = tournamentDataSheet.getRange(4, 2).getValue();
     const tournamentRoundCount = Math.floor(Math.log2(participantCount - 1));
     const matchCount = 2 ** (tournamentRoundCount + 1);
     
@@ -137,7 +160,7 @@ function createTournament() {
     }
     
     // トーナメント表の描画
-    drawTournament(matchupTable, tournamentRoundCount, participantCount, matchCount);
+    drawTournament(matchupTable, tournamentRoundCount, participantCount, matchCount, tournamentType);
     
     // 完了メッセージ
     Browser.msgBox("トーナメントの作成が完了しました。");
@@ -177,8 +200,9 @@ function setupMatchupTable(matchupTable, tournamentRoundCount, matchCount) {
  * @param {number} tournamentRoundCount - トーナメントのラウンド数
  * @param {number} participantCount - 参加者数
  * @param {number} matchCount - 試合数
+ * @param {string} tournamentType - トーナメントのタイプ（片側または両側）
  */
-function drawTournament(matchupTable, tournamentRoundCount, participantCount, matchCount) {
+function drawTournament(matchupTable, tournamentRoundCount, participantCount, matchCount, tournamentType) {
   // シートのアクティブ化と書式設定
   tournamentSheet.activate();
   tournamentSheet.setColumnWidth(INITIAL_COLUMN_POSITION + 1, 150);
@@ -228,8 +252,10 @@ function drawTournament(matchupTable, tournamentRoundCount, participantCount, ma
   tournamentSheet.getRange(2 * centerPosition + INITIAL_ROW_POSITION - 1, INITIAL_COLUMN_POSITION + tournamentRoundCount + 4, 2, 1)
     .setBorder(null, null, null, null, null, true, "black", SpreadsheetApp.BorderStyle.SOLID);
   
-  // 右側のトーナメント表の描画
-  drawRightBracket(tournamentRoundCount, matchCount, participantCount, matchupTable, centerPosition);
+  // トーナメントタイプに応じて右側のトーナメント表を描画
+  if (tournamentType === TOURNAMENT_TYPE.DOUBLE_SIDED) {
+    drawRightBracket(tournamentRoundCount, matchCount, participantCount, matchupTable, centerPosition);
+  }
   
   // 行の高さを一括で設定
   setUniformRowHeights(participantCount);
