@@ -187,22 +187,62 @@ function drawTournament(tableSet, entryGroup, entryTotalNumber, entryTableNumber
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle');
   
-  // トーナメント番号の設定
+  // トーナメント番号の設定（値の設定を一括で行う）
+  const tournamentData = [];
+  const tableData = [];
+  
   let pn = 1;
   for (let i = 0; i < entryTableNumber; i++) {
     if (tableSet[entryGroup][i] !== 0) {
-      // テーブルシートへの記録
-      sht5.getRange(tableSet[entryGroup][i], 1).setValue(tableSet[entryGroup][i]);
-      sht5.getRange(tableSet[entryGroup][i], 2).setValue(pn);
+      // テーブルシートへの記録用データ準備
+      tableData.push({
+        row: tableSet[entryGroup][i],
+        col: 1,
+        value: tableSet[entryGroup][i]
+      });
       
-      // トーナメントシートへの記録
-      sht1.getRange(i * 2 + IRP, ICP).setValue(pn);
-      sht1.getRange(i * 2 + 1 + IRP, ICP).setValue(pn);
+      tableData.push({
+        row: tableSet[entryGroup][i],
+        col: 2,
+        value: pn
+      });
+      
+      // トーナメントシートへの記録用データ準備
+      tournamentData.push({
+        row: i * 2 + IRP,
+        col: ICP,
+        value: pn
+      });
+      
+      tournamentData.push({
+        row: i * 2 + 1 + IRP,
+        col: ICP,
+        value: pn
+      });
+      
+      tournamentData.push({
+        row: i * 2 + IRP,
+        col: ICP + 2,
+        value: tableSet[entryGroup][i]
+      });
+      
+      tournamentData.push({
+        row: i * 2 + 1 + IRP,
+        col: ICP + 2,
+        value: tableSet[entryGroup][i]
+      });
+      
       pn++;
-      
-      sht1.getRange(i * 2 + IRP, ICP + 2).setValue(tableSet[entryGroup][i]);
-      sht1.getRange(i * 2 + 1 + IRP, ICP + 2).setValue(tableSet[entryGroup][i]);
     }
+  }
+  
+  // 値を一括で設定
+  for (const data of tournamentData) {
+    sht1.getRange(data.row, data.col).setValue(data.value);
+  }
+  
+  for (const data of tableData) {
+    sht5.getRange(data.row, data.col).setValue(data.value);
   }
   
   // 罫線の描画
@@ -266,13 +306,25 @@ function setupBlocks(entryGroup, entryTableNumber, tableSet) {
   const j = 1;
   const j2 = 2 ** j;
   
+  // ブロック情報を一括で設定するためのデータを準備
+  const blockData = [];
+  
   for (let i = 0; i < 2 ** (entryGroup + 1); i++) {
     if (tableSet[entryGroup][i] !== 0) {
       n++;
     }
     if (i % j2 === 1) {
-      sht2.getRange((i + 1) / j2, 1).setValue(n);
+      blockData.push({
+        row: (i + 1) / j2,
+        col: 1,
+        value: n
+      });
     }
+  }
+  
+  // 値を一括で設定
+  for (const data of blockData) {
+    sht2.getRange(data.row, data.col).setValue(data.value);
   }
 }
 
@@ -284,22 +336,40 @@ function setupBlocks(entryGroup, entryTableNumber, tableSet) {
 function adjustSpecificBorders(entryTableNumber, entryGroup) {
   const k = entryTableNumber / 2;
   
+  // 値の取得を一括で行うための配列を準備
+  const rangeValues = {};
+  
   for (let i = 1; i < k; i++) {
-    if (sht1.getRange(4 * i - 2 + IRP, ICP + 2).getValue() === "" || 
-        sht1.getRange(4 * (i - 1) + IRP, ICP + 2).getValue() === "") {
-      sht1.getRange(i * 4 - 3 + IRP, ICP + 3, 2, 1).activate()
+    const key1 = `${4 * i - 2 + IRP}_${ICP + 2}`;
+    const key2 = `${4 * (i - 1) + IRP}_${ICP + 2}`;
+    
+    rangeValues[key1] = sht1.getRange(4 * i - 2 + IRP, ICP + 2).getValue();
+    rangeValues[key2] = sht1.getRange(4 * (i - 1) + IRP, ICP + 2).getValue();
+  }
+  
+  // 罫線を設定
+  for (let i = 1; i < k; i++) {
+    const key1 = `${4 * i - 2 + IRP}_${ICP + 2}`;
+    const key2 = `${4 * (i - 1) + IRP}_${ICP + 2}`;
+    
+    if (rangeValues[key1] === "" || rangeValues[key2] === "") {
+      sht1.getRange(i * 4 - 3 + IRP, ICP + 3, 2, 1)
         .setBorder(false, false, false, false, false, true, "black", SpreadsheetApp.BorderStyle.SOLID);
     }
   }
   
+  // 削除対象のセルを特定
   for (let n = 1; n <= entryTableNumber / 2; n++) {
     const i = entryTableNumber / 2 - n + 1;
     let checkOut = 0;
     
-    if (sht1.getRange(4 * i + IRP - 5 + 1, ICP + 2).getValue() === "") {
+    const val1 = sht1.getRange(4 * i + IRP - 5 + 1, ICP + 2).getValue();
+    const val2 = sht1.getRange(4 * i + IRP - 5 + 3, ICP + 2).getValue();
+    
+    if (val1 === "") {
       checkOut = 1;
     }
-    if (sht1.getRange(4 * i + IRP - 5 + 3, ICP + 2).getValue() === "") {
+    if (val2 === "") {
       checkOut = 2;
     }
     
@@ -317,12 +387,30 @@ function adjustSpecificBorders(entryTableNumber, entryGroup) {
  * @param {number} entryTotalNumber - 参加者総数
  */
 function mergeCells(entryTotalNumber) {
+  // マージ前に値をクリアする対象を特定
+  const rangesToClear = [];
+  
   for (let i = 1; i <= entryTotalNumber; i++) {
     if (sht1.getRange(2 * i + IRP - 2, ICP + 2).getValue() !== "") {
-      sht1.getRange(2 * i + IRP - 1, ICP + 2).clearContent();
-      sht1.getRange(2 * i + IRP - 1, ICP).clearContent();
+      rangesToClear.push({
+        row: 2 * i + IRP - 1,
+        col: ICP + 2
+      });
+      
+      rangesToClear.push({
+        row: 2 * i + IRP - 1,
+        col: ICP
+      });
     }
-    
+  }
+  
+  // 値を一括でクリア
+  for (const range of rangesToClear) {
+    sht1.getRange(range.row, range.col).clearContent();
+  }
+  
+  // セルをマージ
+  for (let i = 1; i <= entryTotalNumber; i++) {
     sht1.getRange(2 * i + IRP - 2, ICP + 2, 2, 1).merge();
     sht1.getRange(2 * i + IRP - 2, ICP + 1, 2, 1).merge();
     sht1.getRange(2 * i + IRP - 2, ICP, 2, 1).merge();
@@ -338,18 +426,43 @@ function mergeCells(entryTotalNumber) {
  * @param {number} tp - 特定の位置
  */
 function drawRightTournament(entryGroup, entryTableNumber, entryTotalNumber, tableSet, tp) {
-  let pn = 1;
+  // 右側のトーナメント表の値を設定するためのデータを準備
+  const rightTournamentData = [];
   
-  // 右側のトーナメント表の設定
+  let pn = 1;
   for (let i = 1; i <= entryTableNumber; i++) {
     if (tableSet[entryGroup][i - 1] !== 0) {
-      sht1.getRange(i * 2 - 2 + IRP, 2 * entryGroup + ICP + 8).setValue(pn);
-      sht1.getRange(i * 2 - 1 + IRP, 2 * entryGroup + ICP + 8).setValue(pn);
-      pn++;
+      rightTournamentData.push({
+        row: i * 2 - 2 + IRP,
+        col: 2 * entryGroup + ICP + 8,
+        value: pn
+      });
       
-      sht1.getRange(i * 2 - 2 + IRP, 2 * entryGroup + ICP + 6).setValue(tableSet[entryGroup][i - 1]);
-      sht1.getRange(i * 2 - 1 + IRP, 2 * entryGroup + ICP + 6).setValue(tableSet[entryGroup][i - 1]);
+      rightTournamentData.push({
+        row: i * 2 - 1 + IRP,
+        col: 2 * entryGroup + ICP + 8,
+        value: pn
+      });
+      
+      rightTournamentData.push({
+        row: i * 2 - 2 + IRP,
+        col: 2 * entryGroup + ICP + 6,
+        value: tableSet[entryGroup][i - 1]
+      });
+      
+      rightTournamentData.push({
+        row: i * 2 - 1 + IRP,
+        col: 2 * entryGroup + ICP + 6,
+        value: tableSet[entryGroup][i - 1]
+      });
+      
+      pn++;
     }
+  }
+  
+  // 値を一括で設定
+  for (const data of rightTournamentData) {
+    sht1.getRange(data.row, data.col).setValue(data.value);
   }
   
   // 右側の罫線の描画
@@ -370,10 +483,13 @@ function drawRightTournament(entryGroup, entryTableNumber, entryTotalNumber, tab
     const i = entryTableNumber / 2 - n + 1;
     let checkOut = 0;
     
-    if (sht1.getRange(4 * i + IRP - 5 + 1, 2 * entryGroup + ICP + 6).getValue() === "") {
+    const val1 = sht1.getRange(4 * i + IRP - 5 + 1, 2 * entryGroup + ICP + 6).getValue();
+    const val2 = sht1.getRange(4 * i + IRP - 5 + 3, 2 * entryGroup + ICP + 6).getValue();
+    
+    if (val1 === "") {
       checkOut = 1;
     }
-    if (sht1.getRange(4 * i + IRP - 5 + 3, 2 * entryGroup + ICP + 6).getValue() === "") {
+    if (val2 === "") {
       checkOut = 2;
     }
     
@@ -415,7 +531,6 @@ function drawRightTournament(entryGroup, entryTableNumber, entryTotalNumber, tab
   
   // 特定の罫線の設定
   sht1.getRange(tp + IRP - 1, ICP + entryGroup + 3, 1, 3)
-    .activate()
     .setBorder(false, null, true, null, null, false, "black", SpreadsheetApp.BorderStyle.SOLID);
   
   sht1.getRange(tp + IRP - 3, ICP + entryGroup + 4, 6, 1)
