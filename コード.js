@@ -9,13 +9,13 @@ email:gigaschool2020@gmail.com（安藤宛）
 */
 
 // グローバル変数の定義
-const IRP = 3; // 初期行位置
-const ICP = 1; // 初期列位置
-const ss = SpreadsheetApp.getActiveSpreadsheet();
-const sht0 = ss.getSheetByName('大会データ');
-const sht1 = ss.getSheetByName('トーナメント');
-const sht2 = ss.getSheetByName('ブロック');
-const sht5 = ss.getSheetByName('テーブル');
+const INITIAL_ROW_POSITION = 3; // 初期行位置
+const INITIAL_COLUMN_POSITION = 1; // 初期列位置
+const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+const tournamentDataSheet = spreadsheet.getSheetByName('大会データ');
+const tournamentSheet = spreadsheet.getSheetByName('トーナメント');
+const blockSheet = spreadsheet.getSheetByName('ブロック');
+const tableSheet = spreadsheet.getSheetByName('テーブル');
 
 /**
  * スプレッドシートが開かれたときに実行される関数
@@ -41,20 +41,20 @@ function createTournamentFromInput() {
   );
 
   if (response.getSelectedButton() == ui.Button.OK) {
-    const entryTotalNumber = parseInt(response.getResponseText());
+    const participantCount = parseInt(response.getResponseText());
     
-    if (isNaN(entryTotalNumber) || entryTotalNumber < 2) {
+    if (isNaN(participantCount) || participantCount < 2) {
       ui.alert('エラー', '有効な参加人数を入力してください（2以上の整数）', ui.ButtonSet.OK);
       return;
     }
     
     // 参加人数を保存
-    sht0.getRange(3, 2).setValue(entryTotalNumber);
+    tournamentDataSheet.getRange(3, 2).setValue(participantCount);
     
     // シートの初期化
-    clearSheet(sht1);
-    sht2.clear();
-    sht5.clear();
+    clearSheet(tournamentSheet);
+    blockSheet.clear();
+    tableSheet.clear();
     
     // トーナメント作成
     createTournament();
@@ -85,10 +85,9 @@ function clearSheets() {
   );
 
   if (response == ui.Button.YES) {
-    clearSheet(sht1);
-    sht2.clear();
-    sht5.clear();
-    ui.alert('シートをクリアしました');
+    clearSheet(tournamentSheet);
+    blockSheet.clear();
+    tableSheet.clear();
   }
 }
 
@@ -112,33 +111,33 @@ function initializeArray(rows, cols) {
 function createTournament() {
   try {
     // 基本パラメータの設定
-    const entryTotalNumber = sht0.getRange(3, 2).getValue();
-    const entryGroup = Math.floor(Math.log2(entryTotalNumber - 1));
-    const entryTableNumber = 2 ** (entryGroup + 1);
+    const participantCount = tournamentDataSheet.getRange(3, 2).getValue();
+    const tournamentRoundCount = Math.floor(Math.log2(participantCount - 1));
+    const matchCount = 2 ** (tournamentRoundCount + 1);
     
     // テーブルと区画の初期化
-    const tableSet = initializeArray(entryGroup + 1, entryTableNumber);
-    const blockSet = initializeArray(entryGroup + 1, entryTableNumber);
+    const matchupTable = initializeArray(tournamentRoundCount + 1, matchCount);
+    const blockTable = initializeArray(tournamentRoundCount + 1, matchCount);
     
-    // 初期値の設定
-    tableSet[0][0] = 1;
-    tableSet[0][1] = 4;
-    tableSet[0][2] = 3;
-    tableSet[0][3] = 2;
+    // 初期値の設定（シード順）
+    matchupTable[0][0] = 1;
+    matchupTable[0][1] = 4;
+    matchupTable[0][2] = 3;
+    matchupTable[0][3] = 2;
     
     // テーブルの設定
-    setupTableSet(tableSet, entryGroup, entryTableNumber);
+    setupMatchupTable(matchupTable, tournamentRoundCount, matchCount);
     
     // 最終グループの設定
-    for (let i = 0; i < entryTableNumber; i++) {
-      tableSet[entryGroup][i] = tableSet[entryGroup - 1][i];
-      if (tableSet[entryGroup - 1][i] > entryTotalNumber) {
-        tableSet[entryGroup][i] = 0;
+    for (let i = 0; i < matchCount; i++) {
+      matchupTable[tournamentRoundCount][i] = matchupTable[tournamentRoundCount - 1][i];
+      if (matchupTable[tournamentRoundCount - 1][i] > participantCount) {
+        matchupTable[tournamentRoundCount][i] = 0;
       }
     }
     
     // トーナメント表の描画
-    drawTournament(tableSet, entryGroup, entryTotalNumber, entryTableNumber);
+    drawTournament(matchupTable, tournamentRoundCount, participantCount, matchCount);
     
     // 完了メッセージ
     Browser.msgBox("トーナメントの作成が完了しました。");
@@ -149,23 +148,23 @@ function createTournament() {
 }
 
 /**
- * テーブルセットを設定する関数
- * @param {Array} tableSet - テーブルセット配列
- * @param {number} entryGroup - エントリーグループ数
- * @param {number} entryTableNumber - テーブル数
+ * マッチアップテーブルを設定する関数
+ * @param {Array} matchupTable - マッチアップテーブル配列
+ * @param {number} tournamentRoundCount - トーナメントのラウンド数
+ * @param {number} matchCount - 試合数
  */
-function setupTableSet(tableSet, entryGroup, entryTableNumber) {
-  for (let h = 0; h < entryGroup - 1; h++) {
-    for (let i = 0; i < entryTableNumber / 2; i++) {
-      if (tableSet[h][i] !== 0) {
-        tableSet[h + 1][i * 2] = tableSet[h][i];
-        tableSet[h + 1][i * 2 + 1] = Math.abs(2 ** (h + 3) + 1 - tableSet[h][i]);
+function setupMatchupTable(matchupTable, tournamentRoundCount, matchCount) {
+  for (let round = 0; round < tournamentRoundCount - 1; round++) {
+    for (let matchIndex = 0; matchIndex < matchCount / 2; matchIndex++) {
+      if (matchupTable[round][matchIndex] !== 0) {
+        matchupTable[round + 1][matchIndex * 2] = matchupTable[round][matchIndex];
+        matchupTable[round + 1][matchIndex * 2 + 1] = Math.abs(2 ** (round + 3) + 1 - matchupTable[round][matchIndex]);
         
-        // 特定の位置の値を入れ替え
-        for (let j = 2; j <= entryTableNumber - 1; j = j + 4) {
-          const tempBox = tableSet[h + 1][j];
-          tableSet[h + 1][j] = tableSet[h + 1][j + 1];
-          tableSet[h + 1][j + 1] = tempBox;
+        // 特定の位置の値を入れ替え（バランス調整）
+        for (let swapIndex = 2; swapIndex <= matchCount - 1; swapIndex = swapIndex + 4) {
+          const tempValue = matchupTable[round + 1][swapIndex];
+          matchupTable[round + 1][swapIndex] = matchupTable[round + 1][swapIndex + 1];
+          matchupTable[round + 1][swapIndex + 1] = tempValue;
         }
       }
     }
@@ -174,209 +173,153 @@ function setupTableSet(tableSet, entryGroup, entryTableNumber) {
 
 /**
  * トーナメント表を描画する関数
- * @param {Array} tableSet - テーブルセット配列
- * @param {number} entryGroup - エントリーグループ数
- * @param {number} entryTotalNumber - 参加者総数
- * @param {number} entryTableNumber - テーブル数
+ * @param {Array} matchupTable - マッチアップテーブル配列
+ * @param {number} tournamentRoundCount - トーナメントのラウンド数
+ * @param {number} participantCount - 参加者数
+ * @param {number} matchCount - 試合数
  */
-function drawTournament(tableSet, entryGroup, entryTotalNumber, entryTableNumber) {
+function drawTournament(matchupTable, tournamentRoundCount, participantCount, matchCount) {
   // シートのアクティブ化と書式設定
-  sht1.activate();
-  sht1.setColumnWidth(ICP + 1, 150);
-  sht1.getRange(IRP, ICP, entryTotalNumber * 4 * 1, 3)
+  tournamentSheet.activate();
+  tournamentSheet.setColumnWidth(INITIAL_COLUMN_POSITION + 1, 150);
+  tournamentSheet.getRange(INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION, participantCount * 4 * 1, 3)
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle');
   
-  // トーナメント番号の設定（値の設定を一括で行う）
-  const tournamentData = [];
-  const tableData = [];
-  
-  let pn = 1;
-  for (let i = 0; i < entryTableNumber; i++) {
-    if (tableSet[entryGroup][i] !== 0) {
-      // テーブルシートへの記録用データ準備
-      tableData.push({
-        row: tableSet[entryGroup][i],
-        col: 1,
-        value: tableSet[entryGroup][i]
-      });
+  // トーナメント番号の設定
+  let matchNumber = 1;
+  for (let i = 0; i < matchCount; i++) {
+    if (matchupTable[tournamentRoundCount][i] !== 0) {
+      // テーブルシートへの記録
+      tableSheet.getRange(matchupTable[tournamentRoundCount][i], 1).setValue(matchupTable[tournamentRoundCount][i]);
+      tableSheet.getRange(matchupTable[tournamentRoundCount][i], 2).setValue(matchNumber);
       
-      tableData.push({
-        row: tableSet[entryGroup][i],
-        col: 2,
-        value: pn
-      });
+      // トーナメントシートへの記録
+      tournamentSheet.getRange(i * 2 + INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION).setValue(matchNumber);
+      tournamentSheet.getRange(i * 2 + 1 + INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION).setValue(matchNumber);
+      matchNumber++;
       
-      // トーナメントシートへの記録用データ準備
-      tournamentData.push({
-        row: i * 2 + IRP,
-        col: ICP,
-        value: pn
-      });
-      
-      tournamentData.push({
-        row: i * 2 + 1 + IRP,
-        col: ICP,
-        value: pn
-      });
-      
-      tournamentData.push({
-        row: i * 2 + IRP,
-        col: ICP + 2,
-        value: tableSet[entryGroup][i]
-      });
-      
-      tournamentData.push({
-        row: i * 2 + 1 + IRP,
-        col: ICP + 2,
-        value: tableSet[entryGroup][i]
-      });
-      
-      pn++;
+      tournamentSheet.getRange(i * 2 + INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + 2).setValue(matchupTable[tournamentRoundCount][i]);
+      tournamentSheet.getRange(i * 2 + 1 + INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + 2).setValue(matchupTable[tournamentRoundCount][i]);
     }
   }
   
-  // 値を一括で設定
-  for (const data of tournamentData) {
-    sht1.getRange(data.row, data.col).setValue(data.value);
-  }
-  
-  for (const data of tableData) {
-    sht5.getRange(data.row, data.col).setValue(data.value);
-  }
-  
   // 罫線の描画
-  drawBorders(entryGroup, entryTableNumber);
+  drawBracketLines(tournamentRoundCount, matchCount);
   
   // ブロック情報の設定
-  setupBlocks(entryGroup, entryTableNumber, tableSet);
+  setupBlockInfo(tournamentRoundCount, matchCount, matchupTable);
   
   // 特定の罫線の調整
-  adjustSpecificBorders(entryTableNumber, entryGroup);
+  adjustSpecificBracketLines(matchCount, tournamentRoundCount);
   
   // セルのマージと調整
-  mergeCells(entryTotalNumber);
+  mergeCells(participantCount);
   
-  // 特定の位置の処理
-  let tp = 0;
-  for (let i = 1; i < entryTotalNumber; i++) {
-    if (sht1.getRange(2 * i + IRP - 2, ICP + 2).getValue() === 3) {
-      tp = i - 1;
+  // 特定の位置の処理（中央の位置を特定）
+  let centerPosition = 0;
+  for (let i = 1; i < participantCount; i++) {
+    if (tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, INITIAL_COLUMN_POSITION + 2).getValue() === 3) {
+      centerPosition = i - 1;
     }
   }
   
   // 特定の罫線の設定
-  sht1.getRange(2 * tp + IRP - 1, ICP + entryGroup + 4, 2, 1)
+  tournamentSheet.getRange(2 * centerPosition + INITIAL_ROW_POSITION - 1, INITIAL_COLUMN_POSITION + tournamentRoundCount + 4, 2, 1)
     .setBorder(null, null, null, null, null, true, "black", SpreadsheetApp.BorderStyle.SOLID);
   
   // 右側のトーナメント表の描画
-  drawRightTournament(entryGroup, entryTableNumber, entryTotalNumber, tableSet, tp);
+  drawRightBracket(tournamentRoundCount, matchCount, participantCount, matchupTable, centerPosition);
+  
+  // 行の高さを一括で設定
+  setUniformRowHeights(participantCount);
   
   // シートの先頭にフォーカスを移動
-  sht1.getRange(1, 1).activate();
+  tournamentSheet.getRange(1, 1).activate();
+}
+
+/**
+ * 行の高さを一括で設定する関数
+ * @param {number} participantCount - 参加者数
+ */
+function setUniformRowHeights(participantCount) {
+  // すべての行に対して一括で高さを設定
+  tournamentSheet.setRowHeights(INITIAL_ROW_POSITION, participantCount * 2, 20);
 }
 
 /**
  * 罫線を描画する関数
- * @param {number} entryGroup - エントリーグループ数
- * @param {number} entryTableNumber - テーブル数
+ * @param {number} tournamentRoundCount - トーナメントのラウンド数
+ * @param {number} matchCount - 試合数
  */
-function drawBorders(entryGroup, entryTableNumber) {
-  let k = entryTableNumber / 4;
-  let l = entryTableNumber / k;
+function drawBracketLines(tournamentRoundCount, matchCount) {
+  let groupSize = matchCount / 4;
+  let groupSpacing = matchCount / groupSize;
   
-  for (let h = 0; h < entryGroup + 1; h++) {
-    for (let i = 0; i < k * 2; i++) {
-      sht1.getRange(2 ** h + l * i + IRP, ICP + 3 + h, l / 2, 1)
+  for (let round = 0; round < tournamentRoundCount + 1; round++) {
+    for (let group = 0; group < groupSize * 2; group++) {
+      tournamentSheet.getRange(2 ** round + groupSpacing * group + INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + 3 + round, groupSpacing / 2, 1)
         .setBorder(true, null, true, true, false, false, "black", SpreadsheetApp.BorderStyle.SOLID);
     }
-    l = l * 2;
-    k = k / 2;
+    groupSpacing = groupSpacing * 2;
+    groupSize = groupSize / 2;
   }
 }
 
 /**
  * ブロック情報を設定する関数
- * @param {number} entryGroup - エントリーグループ数
- * @param {number} entryTableNumber - テーブル数
- * @param {Array} tableSet - テーブルセット配列
+ * @param {number} tournamentRoundCount - トーナメントのラウンド数
+ * @param {number} matchCount - 試合数
+ * @param {Array} matchupTable - マッチアップテーブル配列
  */
-function setupBlocks(entryGroup, entryTableNumber, tableSet) {
-  let n = 0;
-  const j = 1;
-  const j2 = 2 ** j;
+function setupBlockInfo(tournamentRoundCount, matchCount, matchupTable) {
+  let blockCount = 0;
+  const blockSize = 1;
+  const blockSizePower = 2 ** blockSize;
   
-  // ブロック情報を一括で設定するためのデータを準備
-  const blockData = [];
-  
-  for (let i = 0; i < 2 ** (entryGroup + 1); i++) {
-    if (tableSet[entryGroup][i] !== 0) {
-      n++;
+  for (let i = 0; i < 2 ** (tournamentRoundCount + 1); i++) {
+    if (matchupTable[tournamentRoundCount][i] !== 0) {
+      blockCount++;
     }
-    if (i % j2 === 1) {
-      blockData.push({
-        row: (i + 1) / j2,
-        col: 1,
-        value: n
-      });
+    if (i % blockSizePower === 1) {
+      blockSheet.getRange((i + 1) / blockSizePower, 1).setValue(blockCount);
     }
-  }
-  
-  // 値を一括で設定
-  for (const data of blockData) {
-    sht2.getRange(data.row, data.col).setValue(data.value);
   }
 }
 
 /**
  * 特定の罫線を調整する関数
- * @param {number} entryTableNumber - テーブル数
- * @param {number} entryGroup - エントリーグループ数
+ * @param {number} matchCount - 試合数
+ * @param {number} tournamentRoundCount - トーナメントのラウンド数
  */
-function adjustSpecificBorders(entryTableNumber, entryGroup) {
-  const k = entryTableNumber / 2;
+function adjustSpecificBracketLines(matchCount, tournamentRoundCount) {
+  const halfMatchCount = matchCount / 2;
   
-  // 値の取得を一括で行うための配列を準備
-  const rangeValues = {};
-  
-  for (let i = 1; i < k; i++) {
-    const key1 = `${4 * i - 2 + IRP}_${ICP + 2}`;
-    const key2 = `${4 * (i - 1) + IRP}_${ICP + 2}`;
-    
-    rangeValues[key1] = sht1.getRange(4 * i - 2 + IRP, ICP + 2).getValue();
-    rangeValues[key2] = sht1.getRange(4 * (i - 1) + IRP, ICP + 2).getValue();
-  }
-  
-  // 罫線を設定
-  for (let i = 1; i < k; i++) {
-    const key1 = `${4 * i - 2 + IRP}_${ICP + 2}`;
-    const key2 = `${4 * (i - 1) + IRP}_${ICP + 2}`;
-    
-    if (rangeValues[key1] === "" || rangeValues[key2] === "") {
-      sht1.getRange(i * 4 - 3 + IRP, ICP + 3, 2, 1)
+  // 空白セルの罫線調整
+  for (let i = 1; i < halfMatchCount; i++) {
+    if (tournamentSheet.getRange(4 * i - 2 + INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + 2).getValue() === "" || 
+        tournamentSheet.getRange(4 * (i - 1) + INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + 2).getValue() === "") {
+      tournamentSheet.getRange(i * 4 - 3 + INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + 3, 2, 1)
         .setBorder(false, false, false, false, false, true, "black", SpreadsheetApp.BorderStyle.SOLID);
     }
   }
   
-  // 削除対象のセルを特定
-  for (let n = 1; n <= entryTableNumber / 2; n++) {
-    const i = entryTableNumber / 2 - n + 1;
-    let checkOut = 0;
+  // 不要な行の削除と罫線調整
+  for (let n = 1; n <= halfMatchCount; n++) {
+    const i = halfMatchCount - n + 1;
+    let emptyStatus = 0;
     
-    const val1 = sht1.getRange(4 * i + IRP - 5 + 1, ICP + 2).getValue();
-    const val2 = sht1.getRange(4 * i + IRP - 5 + 3, ICP + 2).getValue();
-    
-    if (val1 === "") {
-      checkOut = 1;
+    if (tournamentSheet.getRange(4 * i + INITIAL_ROW_POSITION - 5 + 1, INITIAL_COLUMN_POSITION + 2).getValue() === "") {
+      emptyStatus = 1;
     }
-    if (val2 === "") {
-      checkOut = 2;
+    if (tournamentSheet.getRange(4 * i + INITIAL_ROW_POSITION - 5 + 3, INITIAL_COLUMN_POSITION + 2).getValue() === "") {
+      emptyStatus = 2;
     }
     
-    if (checkOut === 1 || checkOut === 2) {
-      sht1.getRange(4 * i + IRP - 3, ICP, 2, entryGroup + 5)
+    if (emptyStatus === 1 || emptyStatus === 2) {
+      tournamentSheet.getRange(4 * i + INITIAL_ROW_POSITION - 3, INITIAL_COLUMN_POSITION, 2, tournamentRoundCount + 5)
         .deleteCells(SpreadsheetApp.Dimension.ROWS);
-      sht1.getRange(4 * i + IRP - 4, ICP + 3, 2, 2)
+      tournamentSheet.getRange(4 * i + INITIAL_ROW_POSITION - 4, INITIAL_COLUMN_POSITION + 3, 2, 2)
         .setBorder(null, null, null, null, null, true, "black", SpreadsheetApp.BorderStyle.SOLID);
     }
   }
@@ -384,156 +327,110 @@ function adjustSpecificBorders(entryTableNumber, entryGroup) {
 
 /**
  * セルをマージする関数
- * @param {number} entryTotalNumber - 参加者総数
+ * @param {number} participantCount - 参加者数
  */
-function mergeCells(entryTotalNumber) {
-  // マージ前に値をクリアする対象を特定
-  const rangesToClear = [];
-  
-  for (let i = 1; i <= entryTotalNumber; i++) {
-    if (sht1.getRange(2 * i + IRP - 2, ICP + 2).getValue() !== "") {
-      rangesToClear.push({
-        row: 2 * i + IRP - 1,
-        col: ICP + 2
-      });
-      
-      rangesToClear.push({
-        row: 2 * i + IRP - 1,
-        col: ICP
-      });
+function mergeCells(participantCount) {
+  for (let i = 1; i <= participantCount; i++) {
+    if (tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, INITIAL_COLUMN_POSITION + 2).getValue() !== "") {
+      tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 1, INITIAL_COLUMN_POSITION + 2).clearContent();
+      tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 1, INITIAL_COLUMN_POSITION).clearContent();
     }
-  }
-  
-  // 値を一括でクリア
-  for (const range of rangesToClear) {
-    sht1.getRange(range.row, range.col).clearContent();
-  }
-  
-  // セルをマージ
-  for (let i = 1; i <= entryTotalNumber; i++) {
-    sht1.getRange(2 * i + IRP - 2, ICP + 2, 2, 1).merge();
-    sht1.getRange(2 * i + IRP - 2, ICP + 1, 2, 1).merge();
-    sht1.getRange(2 * i + IRP - 2, ICP, 2, 1).merge();
+    
+    tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, INITIAL_COLUMN_POSITION + 2, 2, 1).merge();
+    tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, INITIAL_COLUMN_POSITION + 1, 2, 1).merge();
+    tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, INITIAL_COLUMN_POSITION, 2, 1).merge();
   }
 }
 
 /**
  * 右側のトーナメント表を描画する関数
- * @param {number} entryGroup - エントリーグループ数
- * @param {number} entryTableNumber - テーブル数
- * @param {number} entryTotalNumber - 参加者総数
- * @param {Array} tableSet - テーブルセット配列
- * @param {number} tp - 特定の位置
+ * @param {number} tournamentRoundCount - トーナメントのラウンド数
+ * @param {number} matchCount - 試合数
+ * @param {number} participantCount - 参加者数
+ * @param {Array} matchupTable - マッチアップテーブル配列
+ * @param {number} centerPosition - 中央の位置
  */
-function drawRightTournament(entryGroup, entryTableNumber, entryTotalNumber, tableSet, tp) {
-  // 右側のトーナメント表の値を設定するためのデータを準備
-  const rightTournamentData = [];
+function drawRightBracket(tournamentRoundCount, matchCount, participantCount, matchupTable, centerPosition) {
+  let matchNumber = 1;
   
-  let pn = 1;
-  for (let i = 1; i <= entryTableNumber; i++) {
-    if (tableSet[entryGroup][i - 1] !== 0) {
-      rightTournamentData.push({
-        row: i * 2 - 2 + IRP,
-        col: 2 * entryGroup + ICP + 8,
-        value: pn
-      });
+  // 右側のトーナメント表の設定
+  for (let i = 1; i <= matchCount; i++) {
+    if (matchupTable[tournamentRoundCount][i - 1] !== 0) {
+      tournamentSheet.getRange(i * 2 - 2 + INITIAL_ROW_POSITION, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 8).setValue(matchNumber);
+      tournamentSheet.getRange(i * 2 - 1 + INITIAL_ROW_POSITION, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 8).setValue(matchNumber);
+      matchNumber++;
       
-      rightTournamentData.push({
-        row: i * 2 - 1 + IRP,
-        col: 2 * entryGroup + ICP + 8,
-        value: pn
-      });
-      
-      rightTournamentData.push({
-        row: i * 2 - 2 + IRP,
-        col: 2 * entryGroup + ICP + 6,
-        value: tableSet[entryGroup][i - 1]
-      });
-      
-      rightTournamentData.push({
-        row: i * 2 - 1 + IRP,
-        col: 2 * entryGroup + ICP + 6,
-        value: tableSet[entryGroup][i - 1]
-      });
-      
-      pn++;
+      tournamentSheet.getRange(i * 2 - 2 + INITIAL_ROW_POSITION, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 6).setValue(matchupTable[tournamentRoundCount][i - 1]);
+      tournamentSheet.getRange(i * 2 - 1 + INITIAL_ROW_POSITION, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 6).setValue(matchupTable[tournamentRoundCount][i - 1]);
     }
-  }
-  
-  // 値を一括で設定
-  for (const data of rightTournamentData) {
-    sht1.getRange(data.row, data.col).setValue(data.value);
   }
   
   // 右側の罫線の描画
-  let k = entryTableNumber / 4;
-  let l = entryTableNumber / k;
+  let groupSize = matchCount / 4;
+  let groupSpacing = matchCount / groupSize;
   
-  for (let h = 0; h < entryGroup + 1; h++) {
-    for (let i = 0; i < k * 2; i++) {
-      sht1.getRange(2 ** h + l * i + IRP, 2 * entryGroup + ICP + 5 - h, l / 2, 1)
+  for (let round = 0; round < tournamentRoundCount + 1; round++) {
+    for (let group = 0; group < groupSize * 2; group++) {
+      tournamentSheet.getRange(2 ** round + groupSpacing * group + INITIAL_ROW_POSITION, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 5 - round, groupSpacing / 2, 1)
         .setBorder(true, true, true, null, false, false, "black", SpreadsheetApp.BorderStyle.SOLID);
     }
-    l = l * 2;
-    k = k / 2;
+    groupSpacing = groupSpacing * 2;
+    groupSize = groupSize / 2;
   }
   
   // 右側の特定の罫線の調整
-  for (let n = 1; n <= entryTableNumber / 2; n++) {
-    const i = entryTableNumber / 2 - n + 1;
-    let checkOut = 0;
+  for (let n = 1; n <= matchCount / 2; n++) {
+    const i = matchCount / 2 - n + 1;
+    let emptyStatus = 0;
     
-    const val1 = sht1.getRange(4 * i + IRP - 5 + 1, 2 * entryGroup + ICP + 6).getValue();
-    const val2 = sht1.getRange(4 * i + IRP - 5 + 3, 2 * entryGroup + ICP + 6).getValue();
-    
-    if (val1 === "") {
-      checkOut = 1;
+    if (tournamentSheet.getRange(4 * i + INITIAL_ROW_POSITION - 5 + 1, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 6).getValue() === "") {
+      emptyStatus = 1;
     }
-    if (val2 === "") {
-      checkOut = 2;
+    if (tournamentSheet.getRange(4 * i + INITIAL_ROW_POSITION - 5 + 3, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 6).getValue() === "") {
+      emptyStatus = 2;
     }
     
-    if (checkOut === 1 || checkOut === 2) {
-      sht1.getRange(4 * i + IRP - 3, entryGroup + ICP + 5, 2, entryGroup + 4)
+    if (emptyStatus === 1 || emptyStatus === 2) {
+      tournamentSheet.getRange(4 * i + INITIAL_ROW_POSITION - 3, tournamentRoundCount + INITIAL_COLUMN_POSITION + 5, 2, tournamentRoundCount + 4)
         .deleteCells(SpreadsheetApp.Dimension.ROWS);
-      sht1.getRange(4 * i + IRP - 4, 2 * entryGroup + ICP + 4, 2, 2)
+      tournamentSheet.getRange(4 * i + INITIAL_ROW_POSITION - 4, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 4, 2, 2)
         .setBorder(null, null, null, null, null, true, "black", SpreadsheetApp.BorderStyle.SOLID);
     }
   }
   
   // 右側のセルのマージと調整
-  for (let i = 1; i <= entryTableNumber; i++) {
-    if (sht1.getRange(2 * i + IRP - 2, 2 * entryGroup + ICP + 6).getValue() === "") {
-      sht1.getRange(2 * i + IRP - 1, 2 * entryGroup + ICP + 6).getValue() === "";
-      sht1.getRange(2 * i + IRP - 1, 2 * entryGroup + ICP + 8).getValue() === "";
+  for (let i = 1; i <= matchCount; i++) {
+    if (tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 6).getValue() === "") {
+      tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 1, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 6).getValue() === "";
+      tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 1, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 8).getValue() === "";
     }
     
-    sht1.getRange(2 * i + IRP - 2, 2 * entryGroup + ICP + 8, 2, 1).merge();
-    sht1.getRange(2 * i + IRP - 2, 2 * entryGroup + ICP + 7, 2, 1).merge();
-    sht1.getRange(2 * i + IRP - 2, 2 * entryGroup + ICP + 6, 2, 1).merge();
+    tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 8, 2, 1).merge();
+    tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 7, 2, 1).merge();
+    tournamentSheet.getRange(2 * i + INITIAL_ROW_POSITION - 2, 2 * tournamentRoundCount + INITIAL_COLUMN_POSITION + 6, 2, 1).merge();
   }
   
   // 特定の行の削除
-  sht1.getRange(IRP + tp * 2, ICP, (entryTotalNumber - tp) * 2 + 1, entryGroup + 5)
+  tournamentSheet.getRange(INITIAL_ROW_POSITION + centerPosition * 2, INITIAL_COLUMN_POSITION, (participantCount - centerPosition) * 2 + 1, tournamentRoundCount + 5)
     .deleteCells(SpreadsheetApp.Dimension.ROWS);
-  sht1.getRange(IRP, ICP + entryGroup + 4, 2 * tp, 2 * entryGroup - entryGroup + 5)
+  tournamentSheet.getRange(INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + tournamentRoundCount + 4, 2 * centerPosition, 2 * tournamentRoundCount - tournamentRoundCount + 5)
     .deleteCells(SpreadsheetApp.Dimension.ROWS);
   
   // 列幅と書式の設定
-  sht1.setColumnWidth(ICP + 2 * entryGroup + 7, 150);
-  sht1.getRange(IRP, ICP + 2 * entryGroup + 6, entryTotalNumber * 4 + 1, 3)
+  tournamentSheet.setColumnWidth(INITIAL_COLUMN_POSITION + 2 * tournamentRoundCount + 7, 150);
+  tournamentSheet.getRange(INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + 2 * tournamentRoundCount + 6, participantCount * 4 + 1, 3)
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle');
   
-  sht1.setColumnWidth(ICP + entryGroup + 4, 20);
-  sht1.getRange(IRP, ICP + entryGroup + 3, entryTotalNumber * 4 + 1, 3)
+  tournamentSheet.setColumnWidth(INITIAL_COLUMN_POSITION + tournamentRoundCount + 4, 20);
+  tournamentSheet.getRange(INITIAL_ROW_POSITION, INITIAL_COLUMN_POSITION + tournamentRoundCount + 3, participantCount * 4 + 1, 3)
     .setBorder(false, null, false, null, false, false, "black", SpreadsheetApp.BorderStyle.SOLID);
   
   // 特定の罫線の設定
-  sht1.getRange(tp + IRP - 1, ICP + entryGroup + 3, 1, 3)
+  tournamentSheet.getRange(centerPosition + INITIAL_ROW_POSITION - 1, INITIAL_COLUMN_POSITION + tournamentRoundCount + 3, 1, 3)
     .setBorder(false, null, true, null, null, false, "black", SpreadsheetApp.BorderStyle.SOLID);
   
-  sht1.getRange(tp + IRP - 3, ICP + entryGroup + 4, 6, 1)
+  tournamentSheet.getRange(centerPosition + INITIAL_ROW_POSITION - 3, INITIAL_COLUMN_POSITION + tournamentRoundCount + 4, 6, 1)
     .merge()
     .setBorder(true, true, true, true, false, false, "black", SpreadsheetApp.BorderStyle.SOLID);
 }
