@@ -1,0 +1,28 @@
+{
+  "timeZone": "Asia/Tokyo",
+  "dependencies": {
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "sheets": {
+    "macros": [{
+      "menuName": "無題のマクロ",
+      "functionName": "myFunction"
+    }, {
+      "menuName": "無題のマクロ 1",
+      "functionName": "myFunction1"
+    }, {
+      "menuName": "無題のマクロ 2",
+      "functionName": "myFunction2"
+    }, {
+      "menuName": "無題のマクロ 3",
+      "functionName": "myFunction3"
+    }, {
+      "menuName": "並べ替え",
+      "functionName": "myFunction"
+    }, {
+      "menuName": "無題のマクロ",
+      "functionName": "myFunction1"
+    }]
+  }
+}
