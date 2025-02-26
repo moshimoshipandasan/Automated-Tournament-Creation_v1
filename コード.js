@@ -244,7 +244,7 @@ function drawTournament(matchupTable, tournamentRoundCount, participantCount, ma
  */
 function setUniformRowHeights(participantCount) {
   // すべての行に対して一括で高さを設定
-  tournamentSheet.setRowHeights(INITIAL_ROW_POSITION, participantCount * 2, 20);
+  tournamentSheet.setRowHeights(INITIAL_ROW_POSITION, participantCount * 2, 10);
 }
 
 /**
