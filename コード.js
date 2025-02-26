@@ -163,7 +163,7 @@ function createTournament() {
     drawTournament(matchupTable, tournamentRoundCount, participantCount, matchCount, tournamentType);
     
     // 完了メッセージ
-    Browser.msgBox("トーナメントの作成が完了しました。");
+    // Browser.msgBox("トーナメントの作成が完了しました。");
   } catch (error) {
     Browser.msgBox("エラーが発生しました: " + error.message);
     console.error(error);
