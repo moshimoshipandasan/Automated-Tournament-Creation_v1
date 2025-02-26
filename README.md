@@ -4,9 +4,8 @@
 
 ## 参照スプレッドシート
 
-トーナメント情報の参照スプレッドシートは以下のリンクからアクセスできます：
-https://docs.google.com/spreadsheets/d/1n0mGNp6zXVScHSxIpuFl8bcDVKTz1mfwijB4gYrSwsI/edit?usp=sharing
-
+トーナメント表作成のスプレッドシートは以下のリンクからコピーできます：
+https://docs.google.com/spreadsheets/d/1n0mGNp6zXVScHSxIpuFl8bcDVKTz1mfwijB4gYrSwsI/copy
 ## 概要
 
 このツールは、トーナメント表の自動生成や管理を支援します。Google Apps Scriptを利用して、スプレッドシートと連携した機能を提供します。参加人数に応じて最適なトーナメント構造を自動計算し、視覚的に分かりやすいトーナメント表を作成します。
